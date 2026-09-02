@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Outcome Execution Engine</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Outcome Execution Engine</span>
+        <span class="brand-tag">prototype</span>
+      </div>
+      <div class="topbar-meta" id="topbar-meta"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="project-head" id="project-head"></section>
+
+    <!-- Before/After comparison strip (visible when interventions are applied) -->
+    <section id="compare-strip" class="compare-strip" hidden></section>
+
+    <div class="grid">
+      <section class="card span-4" id="card-confidence" aria-label="Outcome confidence"></section>
+      <section class="card span-4" id="card-forecast" aria-label="Forecast"></section>
+      <section class="card span-4" id="card-flow" aria-label="Execution flow"></section>
+
+      <section class="card span-7" id="card-causes" aria-label="Top risk causes"></section>
+      <section class="card span-5" id="card-interventions" aria-label="Recommended interventions"></section>
+
+      <section class="card span-7" id="card-cascade" aria-label="Dependency impact"></section>
+      <section class="card span-5" id="card-turnaround" aria-label="Turnaround breakdown"></section>
+
+      <section class="card span-12" id="card-milestones" aria-label="Milestones"></section>
+    </div>
+
+    <footer class="page-foot">
+      Demo prototype — all execution data is seeded/mocked for one example project.
+      No live Jira, GitHub, or Slack integration. Forecasts and intervention impacts are
+      computed by the built-in scheduling model, not hand-written.
+    </footer>
+  </main>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+
+  <!-- Layered architecture: data → engine (schedule/forecast) → recommendations → UI -->
+  <script src="js/data/seed.js"></script>
+  <script src="js/engine/calendar.js"></script>
+  <script src="js/engine/graph.js"></script>
+  <script src="js/engine/forecast.js"></script>
+  <script src="js/engine/recommendations.js"></script>
+  <script src="js/ui/format.js"></script>
+  <script src="js/ui/charts.js"></script>
+  <script src="js/ui/render.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
