@@ -1,12 +1,14 @@
 import type * as z from 'zod/v4';
 import {
   extractionResultSchema,
+  type AssistantAnswer,
   type ClarifyingQuestion,
   type Confidence,
   type ExtractionResult,
   type ProposedTask,
 } from '@outcome/shared';
 import type { AiProvider, StructuredRequest, StructuredResponse } from '../provider.js';
+import { answerQuestion } from './fake-assistant.js';
 
 /**
  * Deterministic local provider.
@@ -27,13 +29,10 @@ export class FakeProvider implements AiProvider {
   async structured<T extends z.ZodTypeAny>(
     req: StructuredRequest<T>,
   ): Promise<StructuredResponse<z.infer<T>>> {
-    if (req.task !== 'braindump') {
-      throw new Error(`fake provider does not implement task "${req.task}"`);
-    }
-    const text = extractPayload(req.user);
-    const result = extract(text, extractExistingRefs(req.user));
-    // Validate through the same schema the real provider is held to.
-    const value = extractionResultSchema.parse(result) as z.infer<T>;
+    const value =
+      req.task === 'assistant'
+        ? (answerAssistant(req.user) as z.infer<T>)
+        : (extractBraindump(req.user) as z.infer<T>);
     return {
       value,
       model: this.model,
@@ -42,6 +41,28 @@ export class FakeProvider implements AiProvider {
       attempts: 1,
     };
   }
+}
+
+function extractBraindump(user: string): ExtractionResult {
+  const text = extractPayload(user);
+  // Validate through the same schema the real provider is held to.
+  return extractionResultSchema.parse(extract(text, extractExistingRefs(user)));
+}
+
+function answerAssistant(user: string): AssistantAnswer {
+  const context = delimited(user, 'context');
+  const question = delimited(user, 'question');
+  const today = /^TODAY:\s*(\d{4}-\d{2}-\d{2})/m.exec(user)?.[1] ?? new Date().toISOString().slice(0, 10);
+  const askingName = /^ASKING:\s*(.+)$/m.exec(user)?.[1]?.trim() ?? '';
+  return answerQuestion(question, context, today, askingName);
+}
+
+/** Read the LAST delimited block, so prose naming a tag cannot be captured. */
+function delimited(text: string, tag: string): string {
+  const open = text.lastIndexOf(`<${tag}>`);
+  const close = text.lastIndexOf(`</${tag}>`);
+  if (open === -1 || close <= open) return '';
+  return text.slice(open + tag.length + 2, close).trim();
 }
 
 /**

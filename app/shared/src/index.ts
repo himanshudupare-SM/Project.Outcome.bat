@@ -9,3 +9,5 @@ export * from './schemas/activity.js';
 export * from './schemas/ai-output.js';
 export * from './schemas/ai.js';
 export * from './schemas/import.js';
+export * from './schemas/assistant-output.js';
+export * from './schemas/assistant.js';

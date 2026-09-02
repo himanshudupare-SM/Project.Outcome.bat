@@ -25,6 +25,9 @@ export function AppShell(): JSX.Element {
         <NavLink to={`/o/${orgSlug}/capture`} className="nav-link">
           Brain dump
         </NavLink>
+        <NavLink to={`/o/${orgSlug}/assistant`} className="nav-link">
+          Assistant
+        </NavLink>
         <NavLink to={`/o/${orgSlug}/me`} className="nav-link">
           My work
         </NavLink>
