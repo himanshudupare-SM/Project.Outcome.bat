@@ -4,6 +4,7 @@ import { registerOrgRoutes } from './routes/orgs.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { registerMiscRoutes } from './routes/misc.js';
+import { registerAiRoutes } from './routes/ai.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(
@@ -13,6 +14,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       await registerProjectRoutes(api);
       await registerTaskRoutes(api);
       await registerMiscRoutes(api);
+      await registerAiRoutes(api);
     },
     { prefix: '/api/v1' },
   );

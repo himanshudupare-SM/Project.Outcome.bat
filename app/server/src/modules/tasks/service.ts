@@ -131,10 +131,17 @@ async function assertOrgMember(tx: Queryable, orgId: string, userId: string): Pr
   }
 }
 
+/** Where a task came from, for provenance on AI- and import-created work. */
+export interface TaskOrigin {
+  source: 'manual' | 'ai' | 'import';
+  braindumpId?: string | null;
+}
+
 export async function createTask(
   ctx: OrgCtx,
   project: ResolvedProject,
   input: CreateTaskInput,
+  origin: TaskOrigin = { source: 'manual' },
 ): Promise<TaskDetail> {
   requireProjectRole(ctx, project.role, 'member');
 
@@ -196,8 +203,8 @@ export async function createTask(
         input.dueDate ?? null,
         input.estimateDays ?? null,
         position,
-        'manual',
-        null,
+        origin.source,
+        origin.braindumpId ?? null,
         ctx.userId,
         status.category,
       ],
@@ -215,14 +222,14 @@ export async function createTask(
 
     await recordEvent(tx, {
       orgId: ctx.orgId,
-      actorType: 'user',
+      actorType: origin.source === 'manual' ? 'user' : origin.source === 'ai' ? 'ai' : 'system',
       actorId: ctx.userId,
       entityType: 'task',
       entityId: taskId,
       projectId: project.id,
       taskId,
       action: 'created',
-      data: { title: input.title, ref: `${project.key}-${number}` },
+      data: { title: input.title, ref: `${project.key}-${number}`, source: origin.source },
     });
     if (input.assigneeId) {
       await notify(tx, {

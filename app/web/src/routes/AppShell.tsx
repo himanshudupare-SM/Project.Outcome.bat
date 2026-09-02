@@ -22,6 +22,9 @@ export function AppShell(): JSX.Element {
         <NavLink to={`/o/${orgSlug}`} end className="nav-link">
           Dashboard
         </NavLink>
+        <NavLink to={`/o/${orgSlug}/capture`} className="nav-link">
+          Brain dump
+        </NavLink>
         <NavLink to={`/o/${orgSlug}/me`} className="nav-link">
           My work
         </NavLink>
@@ -62,6 +65,9 @@ export function AppShell(): JSX.Element {
           <strong style={{ fontSize: 13 }}>{org?.name ?? orgSlug}</strong>
           {org && <span className="chip">{org.role}</span>}
           <span className="spacer" />
+          <NavLink to={`/o/${orgSlug}/capture`} className="btn btn-primary btn-sm">
+            Brain dump
+          </NavLink>
           <span className="page-sub">{me?.user.name}</span>
           <Button variant="ghost" size="sm" onClick={logout}>
             Sign out
