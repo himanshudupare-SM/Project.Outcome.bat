@@ -1,7 +1,7 @@
 import type { Task } from '@outcome/shared';
 import { listTasks } from './service.js';
 import type { OrgCtx } from '../../platform/ctx.js';
-import { db, orgDb } from '../../platform/db.js';
+import { orgDb } from '../../platform/db.js';
 
 export interface RankedTask {
   task: Task;

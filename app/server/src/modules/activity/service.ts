@@ -1,5 +1,5 @@
 import type { ActivityEvent } from '@outcome/shared';
-import { db, type Queryable, orgDb } from '../../platform/db.js';
+import { type Queryable, orgDb } from '../../platform/db.js';
 import type { OrgCtx } from '../../platform/ctx.js';
 
 export interface RecordEventInput {

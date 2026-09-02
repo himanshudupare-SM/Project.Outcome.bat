@@ -7,7 +7,7 @@ import type {
   OrgRole,
   Team,
 } from '@outcome/shared';
-import { db, isUniqueViolation, withOrg, withTx, orgDb } from '../../platform/db.js';
+import { isUniqueViolation, withOrg, withTx, orgDb } from '../../platform/db.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import { generateToken, hashToken } from '../../platform/crypto.js';
 import { requireOrgRole } from '../auth/policy.js';

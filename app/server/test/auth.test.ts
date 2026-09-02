@@ -55,7 +55,7 @@ describe('signup and login', () => {
       payload: { email: 'weak@example.com', name: 'Weak', password: 'short' },
     });
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body).fields).toHaveProperty('password');
+    expect((JSON.parse(res.body) as { fields: Record<string, string> }).fields).toHaveProperty('password');
   });
 
   it('does not reveal whether an account exists', async () => {
@@ -72,7 +72,9 @@ describe('signup and login', () => {
     });
     expect(missing.statusCode).toBe(400);
     expect(wrongPassword.statusCode).toBe(400);
-    expect(JSON.parse(missing.body).detail).toBe(JSON.parse(wrongPassword.body).detail);
+    const missingBody = JSON.parse(missing.body) as { detail: string };
+    const wrongBody = JSON.parse(wrongPassword.body) as { detail: string };
+    expect(missingBody.detail).toBe(wrongBody.detail);
   });
 
   it('requires authentication for /auth/me', async () => {
@@ -97,7 +99,7 @@ describe('signup and login', () => {
       headers: { cookie: client.cookies }, // cookie present, header missing
     });
     expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.body).type).toBe('csrf_failed');
+    expect((JSON.parse(res.body) as { type: string }).type).toBe('csrf_failed');
   });
 
   it('changing the password revokes other sessions but keeps the current one', async () => {

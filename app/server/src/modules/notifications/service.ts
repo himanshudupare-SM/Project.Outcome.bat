@@ -1,5 +1,5 @@
 import type { Notification, NotificationType } from '@outcome/shared';
-import { db, type Queryable, orgDb } from '../../platform/db.js';
+import { type Queryable, orgDb } from '../../platform/db.js';
 import type { OrgCtx } from '../../platform/ctx.js';
 
 export interface NotifyInput {
@@ -133,7 +133,7 @@ export async function resolveMentions(
   orgId: string,
   body: string,
 ): Promise<string[]> {
-  const handles = [...body.matchAll(/@([\w][\w.\-]{1,60})/g)].map((m) => m[1]!.toLowerCase());
+  const handles = [...body.matchAll(/@([\w][\w.-]{1,60})/g)].map((m) => m[1]!.toLowerCase());
   if (handles.length === 0) return [];
   const { rows } = await tx.query<{ id: string }>(
     `SELECT u.id FROM users u JOIN org_members m ON m.user_id = u.id AND m.org_id = $1

@@ -124,7 +124,8 @@ export const taskDetail = task.extend({
 export type TaskDetail = z.infer<typeof taskDetail>;
 
 export const taskListQuery = z.object({
-  projectId: z.string().uuid().optional(),
+  /** Project key (ATLAS) or id — the API resolves either. */
+  projectId: z.string().min(1).max(64).optional(),
   statusId: z.string().uuid().optional(),
   statusCategory: z.enum(STATUS_CATEGORIES).optional(),
   assigneeId: z.string().optional(), // uuid | 'me' | 'none'

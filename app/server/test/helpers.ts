@@ -90,7 +90,7 @@ export async function signup(
   });
   if (res.statusCode !== 201) throw new Error(`signup failed: ${res.statusCode} ${res.body}`);
   const parsed = JSON.parse(res.body) as { user: { id: string } };
-  const { cookies, csrf } = readCookies(res as never);
+  const { cookies, csrf } = readCookies(res);
   return { userId: parsed.user.id, email, cookies, csrf };
 }
 
@@ -106,7 +106,7 @@ export async function login(
   });
   if (res.statusCode !== 200) throw new Error(`login failed: ${res.statusCode} ${res.body}`);
   const parsed = JSON.parse(res.body) as { user: { id: string } };
-  const { cookies, csrf } = readCookies(res as never);
+  const { cookies, csrf } = readCookies(res);
   return { userId: parsed.user.id, email, cookies, csrf };
 }
 

@@ -2,8 +2,15 @@
   "name": "outcome",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["shared", "server", "web"],
-  "engines": { "node": ">=22" },
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "npm run dev --workspace=@outcome/server & npm run dev --workspace=@outcome/web",
     "build": "npm run build --workspace=@outcome/shared && npm run build --workspace=@outcome/server && npm run build --workspace=@outcome/web",

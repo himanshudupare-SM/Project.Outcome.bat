@@ -4,7 +4,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { config } from '../platform/config.js';
-import { logger } from '../platform/logger.js';
+import { loggerOptions } from '../platform/logger.js';
 import { AppError, RateLimitedError } from '../platform/errors.js';
 import { resolveApiKey, resolveSession } from '../modules/auth/service.js';
 import type { UserCtx } from '../platform/ctx.js';
@@ -25,8 +25,7 @@ declare module 'fastify' {
 export async function buildApp(): Promise<FastifyInstance> {
   const cfg = config();
   const app = Fastify({
-    // Fastify wants either options or an existing instance under loggerInstance.
-    loggerInstance: logger,
+    logger: loggerOptions(),
     trustProxy: cfg.isProd,
     bodyLimit: 1024 * 1024, // 1 MB; attachments go straight to object storage
     genReqId: () => crypto.randomUUID(),

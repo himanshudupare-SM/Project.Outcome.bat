@@ -11,7 +11,7 @@ import type {
   TaskRef,
   UpdateTaskInput,
 } from '@outcome/shared';
-import { db, withOrg, type Queryable, orgDb } from '../../platform/db.js';
+import { orgDb, withOrg, type Queryable } from '../../platform/db.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import { requireProjectRole } from '../auth/policy.js';
 import { diffFields, recordEvent } from '../activity/service.js';
@@ -576,7 +576,7 @@ export async function updateTask(
         epic_id: input.epicId,
         due_date: input.dueDate,
         estimate_days: input.estimateDays,
-      } as Record<string, unknown>,
+      },
       ['title', 'description', 'status_id', 'priority', 'assignee_id', 'epic_id', 'due_date', 'estimate_days'],
     );
     if (changes.length > 0) {

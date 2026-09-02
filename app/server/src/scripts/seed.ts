@@ -124,7 +124,7 @@ async function main(): Promise<void> {
       labelIds: [],
       priority: 'none',
       ...input,
-    } as CreateTaskInput);
+    });
 
   const done = statusByCategory.get('done')!;
   const inProgress = statusByCategory.get('in_progress')!;
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
     labelIds: [labels.payments.id, labels.compliance.id],
   });
 
-  const webhooks = await mk({
+  await mk({
     title: 'Webhook idempotency & retry hardening',
     epicId: epics.integration.id,
     statusId: inProgress,
@@ -204,7 +204,7 @@ async function main(): Promise<void> {
     labelIds: [labels.frontend.id],
   });
 
-  const uiMigration = await mk({
+  await mk({
     title: 'Checkout UI migration to new payment fields',
     epicId: epics.flows.id,
     statusId: done,

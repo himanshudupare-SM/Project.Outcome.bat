@@ -1,4 +1,4 @@
-import { db, orgDb } from '../../platform/db.js';
+import { orgDb } from '../../platform/db.js';
 import type { OrgCtx } from '../../platform/ctx.js';
 
 export interface SearchHit {

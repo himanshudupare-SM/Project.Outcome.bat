@@ -3,14 +3,13 @@ import {
   type CreateEpicInput,
   type CreateProjectInput,
   type Epic,
-  type Project,
   type ProjectDetail,
   type ProjectRole,
   type ProjectSummary,
   type Status,
   type UpdateProjectInput,
 } from '@outcome/shared';
-import { db, isUniqueViolation, withOrg, type Queryable, orgDb } from '../../platform/db.js';
+import { isUniqueViolation, orgDb, withOrg, type Queryable } from '../../platform/db.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import { requireOrgRole, requireProjectRole } from '../auth/policy.js';
 import { recordEvent, diffFields } from '../activity/service.js';
@@ -244,7 +243,7 @@ export async function updateProject(
         lead_id: input.leadId,
         target_date: input.targetDate,
         state: input.state,
-      } as Record<string, unknown>,
+      },
       ['name', 'description', 'team_id', 'lead_id', 'target_date', 'state'],
     );
     if (changes.length > 0) {

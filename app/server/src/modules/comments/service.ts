@@ -1,5 +1,5 @@
 import type { Comment, CreateCommentInput } from '@outcome/shared';
-import { db, withOrg, orgDb } from '../../platform/db.js';
+import { withOrg, orgDb } from '../../platform/db.js';
 import { ForbiddenError, NotFoundError } from '../../platform/errors.js';
 import { canModifyOwn, requireProjectRole } from '../auth/policy.js';
 import { recordEvent } from '../activity/service.js';
