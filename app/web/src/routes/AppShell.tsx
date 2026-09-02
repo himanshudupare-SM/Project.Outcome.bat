@@ -58,6 +58,9 @@ export function AppShell(): JSX.Element {
         <NavLink to={`/o/${orgSlug}/activity`} className="nav-link">
           Activity
         </NavLink>
+        <NavLink to={`/o/${orgSlug}/settings/integrations/jira`} className="nav-link">
+          Import from Jira
+        </NavLink>
       </nav>
 
       <div className="main">

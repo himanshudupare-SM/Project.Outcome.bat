@@ -17,6 +17,7 @@ import { OrgActivity, ProjectActivity } from './Activity.js';
 import { AcceptInvite } from './AcceptInvite.js';
 import { Board } from '../features/board/Board.js';
 import { Capture } from '../features/braindump/Capture.js';
+import { JiraImport } from '../features/importer/JiraImport.js';
 import { TaskDrawer } from '../features/tasks/TaskDrawer.js';
 
 /** Gate for signed-in routes; sends unauthenticated users to /login. */
@@ -75,6 +76,7 @@ export function AppRoutes(): JSX.Element {
         <Route path="inbox" element={<Inbox />} />
         <Route path="search" element={<Search />} />
         <Route path="capture" element={<Capture />} />
+        <Route path="settings/integrations/jira" element={<JiraImport />} />
         <Route path="projects" element={<Projects />} />
         <Route path="team" element={<Team />} />
         <Route path="activity" element={<OrgActivity />} />

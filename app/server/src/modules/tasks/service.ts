@@ -1,15 +1,16 @@
-import type {
-  Blocker,
-  CreateBlockerInput,
-  CreateTaskInput,
-  Label,
-  MoveTaskInput,
-  StatusCategory,
-  Task,
-  TaskDetail,
-  TaskListQuery,
-  TaskRef,
-  UpdateTaskInput,
+import {
+  createTaskInput,
+  type Blocker,
+  type CreateBlockerInput,
+  type CreateTaskInput,
+  type Label,
+  type MoveTaskInput,
+  type StatusCategory,
+  type Task,
+  type TaskDetail,
+  type TaskListQuery,
+  type TaskRef,
+  type UpdateTaskInput,
 } from '@outcome/shared';
 import { orgDb, withOrg, type Queryable } from '../../platform/db.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
@@ -140,10 +141,13 @@ export interface TaskOrigin {
 export async function createTask(
   ctx: OrgCtx,
   project: ResolvedProject,
-  input: CreateTaskInput,
+  rawInput: CreateTaskInput,
   origin: TaskOrigin = { source: 'manual' },
 ): Promise<TaskDetail> {
   requireProjectRole(ctx, project.role, 'member');
+  // Re-validate here, not only at the HTTP edge: the importer and the AI
+  // approval path call this directly and must obey the same contract.
+  const input = createTaskInput.parse(rawInput);
 
   return withOrg(ctx.orgId, async (tx) => {
     const status = await resolveStatus(tx, project.id, input.statusId);

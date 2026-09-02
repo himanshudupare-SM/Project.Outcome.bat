@@ -136,3 +136,18 @@ export async function bootstrapOrgProject(
     statuses: project.body.statuses,
   };
 }
+
+/** Create an extra project inside an existing org. */
+export async function createProject(
+  client: TestClient,
+  orgSlug: string,
+  name: string,
+): Promise<{ id: string; key: string; statuses: Array<{ id: string; category: string; name: string }> }> {
+  const res = await api<{
+    id: string;
+    key: string;
+    statuses: Array<{ id: string; category: string; name: string }>;
+  }>(client, 'POST', `/api/v1/orgs/${orgSlug}/projects`, { name });
+  if (res.status !== 201) throw new Error(`project create failed: ${JSON.stringify(res.body)}`);
+  return res.body;
+}
