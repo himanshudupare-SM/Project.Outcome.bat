@@ -169,7 +169,14 @@ export function Dialog({
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus();
+    // A selector list matches in document order, which would land on the header
+    // close button. Try the field types in preference order instead, so opening
+    // a dialog puts the caret where the work is.
+    const target =
+      ['input:not([disabled])', 'textarea', 'select', 'button:not([disabled])']
+        .map((selector) => ref.current?.querySelector<HTMLElement>(selector) ?? null)
+        .find((el) => el !== null) ?? null;
+    target?.focus();
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'Tab' && ref.current) {
@@ -287,12 +294,14 @@ export function Pill({
 
 export function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.round(diff / 60_000);
+  // Floor, not round: rounding reports elapsed time that has not elapsed yet
+  // (30 seconds ago as "1m ago", 90 minutes ago as "2h ago").
+  const mins = Math.floor(diff / 60_000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
+  const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
+  const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

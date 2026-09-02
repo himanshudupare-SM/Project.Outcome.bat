@@ -20,6 +20,26 @@ pg.types.setTypeParser(pg.types.builtins.NUMERIC, (v) => (v === null ? null : Nu
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => (v === null ? null : Number(v)));
 // dates as plain YYYY-MM-DD strings, no timezone shifting
 pg.types.setTypeParser(pg.types.builtins.DATE, (v) => v);
+/**
+ * Timestamps as ISO 8601 strings rather than Date objects.
+ *
+ * Two bugs this avoids: a driver Date stringifies to a format Postgres cannot
+ * parse back (which broke keyset cursors built by interpolating the value),
+ * and going through `new Date()` truncates Postgres's microseconds to
+ * milliseconds, which makes a cursor compare as older than the row it came
+ * from and returns an empty page. So reformat the text in place and keep
+ * every digit.
+ */
+export function timestampToIso(raw: string | null): string | null {
+  if (raw === null) return null;
+  // '2026-09-02 17:35:22.123456+00' -> '2026-09-02T17:35:22.123456Z'
+  return raw
+    .replace(' ', 'T')
+    .replace(/([+-]\d\d)$/, '$1:00')
+    .replace(/\+00:00$/, 'Z');
+}
+pg.types.setTypeParser(pg.types.builtins.TIMESTAMPTZ, timestampToIso);
+pg.types.setTypeParser(pg.types.builtins.TIMESTAMP, timestampToIso);
 
 let poolInstance: pg.Pool | null = null;
 

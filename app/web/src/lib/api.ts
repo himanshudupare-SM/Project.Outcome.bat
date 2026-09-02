@@ -62,7 +62,18 @@ export async function request<T>(
 
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  const payload: unknown = text ? JSON.parse(text) : null;
+  // A proxy or load balancer in front of the API can answer with an HTML
+  // error page, and a cut-off response leaves truncated JSON. Neither should
+  // surface as a raw SyntaxError the UI has no handler for.
+  let payload: unknown = null;
+  let parsed = true;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      parsed = false;
+    }
+  }
 
   if (!res.ok) {
     const errorBody =
@@ -70,6 +81,14 @@ export async function request<T>(
         ? (payload as ErrorBody)
         : { type: 'unknown', title: 'Request failed', status: res.status };
     throw new ApiError(res.status, errorBody);
+  }
+  if (!parsed) {
+    throw new ApiError(res.status, {
+      type: 'malformed_response',
+      title: 'Unexpected response',
+      status: res.status,
+      detail: 'The server sent a response we could not read. Please try again.',
+    });
   }
   return payload as T;
 }

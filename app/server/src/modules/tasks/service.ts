@@ -511,25 +511,45 @@ async function getDetailTx(tx: Queryable, ctx: OrgCtx, taskId: string): Promise<
   };
 }
 
+export interface UpdateOptions {
+  /**
+   * Runs inside the update transaction. A board move uses this to allocate
+   * its position under a lock, so two simultaneous drops cannot read the same
+   * `max(position)` and land on top of each other.
+   */
+  resolvePosition?: (tx: Queryable, statusId: string) => Promise<number>;
+}
+
 export async function updateTask(
   ctx: OrgCtx,
   taskId: string,
   input: UpdateTaskInput,
+  options: UpdateOptions = {},
 ): Promise<TaskDetail> {
   const access = await taskAccess(ctx, taskId);
   requireProjectRole(ctx, access.projectRole, 'member');
 
   return withOrg(ctx.orgId, async (tx) => {
+    // Lock the task row on its own: with a JOIN in a FOR UPDATE read, a
+    // concurrent update makes Postgres re-check the join against a stale
+    // tuple and the row disappears — which surfaced as a spurious 404 when
+    // two people moved the same card at once.
     const { rows: beforeRows } = await tx.query<Record<string, never>>(
-      `SELECT t.title, t.description, t.status_id, t.priority, t.assignee_id, t.epic_id,
-              t.due_date, t.estimate_days, s.category AS status_category
-         FROM tasks t JOIN statuses s ON s.id = t.status_id
-        WHERE t.id = $1 AND t.org_id = $2 AND t.deleted_at IS NULL
-        FOR UPDATE OF t`,
+      `SELECT title, description, status_id, priority, assignee_id, epic_id,
+              due_date, estimate_days
+         FROM tasks
+        WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL
+        FOR UPDATE`,
       [taskId, ctx.orgId],
     );
     const before = beforeRows[0] as unknown as Record<string, unknown> | undefined;
     if (!before) throw new NotFoundError('Task');
+
+    const { rows: currentStatus } = await tx.query<{ category: StatusCategory }>(
+      'SELECT category FROM statuses WHERE id = $1',
+      [before['status_id']],
+    );
+    before['status_category'] = currentStatus[0]?.category ?? 'backlog';
 
     let newCategory = before['status_category'] as StatusCategory;
     if (input.statusId !== undefined) {
@@ -559,7 +579,12 @@ export async function updateTask(
     if (input.epicId !== undefined) push('epic_id', input.epicId);
     if (input.dueDate !== undefined) push('due_date', input.dueDate);
     if (input.estimateDays !== undefined) push('estimate_days', input.estimateDays);
-    if (input.position !== undefined) push('position', input.position);
+    if (options.resolvePosition) {
+      const statusForPosition = input.statusId ?? (before['status_id'] as string);
+      push('position', await options.resolvePosition(tx, statusForPosition));
+    } else if (input.position !== undefined) {
+      push('position', input.position);
+    }
 
     // completed_at tracks the done category, so analytics never guess.
     if (input.statusId !== undefined) {
@@ -667,10 +692,12 @@ async function notifyDependents(
 }
 
 /**
- * Board drag: place a task in a column between two neighbours. The position
- * is derived server-side from the neighbour ids so two clients dragging at
- * once cannot invent conflicting orders, and status changes reuse the same
- * validation/notification path as a normal update.
+ * Board drag: place a task in a column between two neighbours.
+ *
+ * The position is derived server-side from the neighbour ids, and allocated
+ * inside the update transaction while holding a per-column advisory lock:
+ * without that, simultaneous drops each read the same `max(position)` and end
+ * up sharing one position, which makes the column order non-deterministic.
  */
 export async function moveTask(
   ctx: OrgCtx,
@@ -680,32 +707,40 @@ export async function moveTask(
   const access = await taskAccess(ctx, taskId);
   requireProjectRole(ctx, access.projectRole, 'member');
 
-  const position = await withOrg(ctx.orgId, async (tx) => {
-    const status = await resolveStatus(tx, access.projectId, input.statusId);
-    const neighbourPos = async (id: string | null | undefined): Promise<number | null> => {
-      if (!id) return null;
-      const { rows } = await tx.query<{ position: number }>(
-        'SELECT position FROM tasks WHERE id = $1 AND status_id = $2 AND deleted_at IS NULL',
-        [id, status.id],
-      );
-      return rows[0]?.position ?? null;
-    };
-    // Columns render in ascending position, so the card above the drop point
-    // has the SMALLER position and the card below has the larger one.
-    const abovePos = await neighbourPos(input.beforeTaskId);
-    const belowPos = await neighbourPos(input.afterTaskId);
+  return updateTask(
+    ctx,
+    taskId,
+    { statusId: input.statusId },
+    {
+      resolvePosition: async (tx, statusId) => {
+        await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+          `move:${access.projectId}:${statusId}`,
+        ]);
 
-    if (abovePos !== null && belowPos !== null) return (abovePos + belowPos) / 2;
-    if (abovePos !== null) return abovePos + POSITION_GAP; // dropped at the bottom
-    if (belowPos !== null) return belowPos - POSITION_GAP; // dropped at the top
-    const { rows } = await tx.query<{ pos: number | null }>(
-      'SELECT max(position) AS pos FROM tasks WHERE project_id = $1 AND status_id = $2 AND deleted_at IS NULL',
-      [access.projectId, status.id],
-    );
-    return (rows[0]?.pos ?? 0) + POSITION_GAP;
-  });
+        const neighbourPos = async (id: string | null | undefined): Promise<number | null> => {
+          if (!id) return null;
+          const { rows } = await tx.query<{ position: number }>(
+            'SELECT position FROM tasks WHERE id = $1 AND status_id = $2 AND deleted_at IS NULL',
+            [id, statusId],
+          );
+          return rows[0]?.position ?? null;
+        };
+        // Columns render in ascending position, so the card above the drop
+        // point has the smaller position and the card below the larger one.
+        const abovePos = await neighbourPos(input.beforeTaskId);
+        const belowPos = await neighbourPos(input.afterTaskId);
 
-  return updateTask(ctx, taskId, { statusId: input.statusId, position });
+        if (abovePos !== null && belowPos !== null) return (abovePos + belowPos) / 2;
+        if (abovePos !== null) return abovePos + POSITION_GAP; // dropped at the bottom
+        if (belowPos !== null) return belowPos - POSITION_GAP; // dropped at the top
+        const { rows } = await tx.query<{ pos: number | null }>(
+          'SELECT max(position) AS pos FROM tasks WHERE project_id = $1 AND status_id = $2 AND deleted_at IS NULL',
+          [access.projectId, statusId],
+        );
+        return (rows[0]?.pos ?? 0) + POSITION_GAP;
+      },
+    },
+  );
 }
 
 export async function deleteTask(ctx: OrgCtx, taskId: string): Promise<void> {
@@ -746,6 +781,13 @@ export async function addDependency(
   }
 
   await withOrg(ctx.orgId, async (tx) => {
+    // Serialize dependency writes for this project: the cycle check below
+    // reads the graph, so two edges added at the same instant could each see
+    // an acyclic graph and together create a cycle.
+    await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+      `deps:${blocked.projectId}`,
+    ]);
+
     // Reject cycles: the new edge is invalid if `blocked` already reaches
     // `blocking` transitively.
     const { rows: cycle } = await tx.query<{ exists: boolean }>(

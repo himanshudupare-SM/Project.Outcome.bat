@@ -7,14 +7,13 @@ import {
   type ProposedAction,
 } from '@outcome/shared';
 import { orgDb, withOrg, type Queryable } from '../../platform/db.js';
+import { reserveAiCall } from './budget.js';
 import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-  RateLimitedError,
   ValidationError,
 } from '../../platform/errors.js';
-import { config } from '../../platform/config.js';
 import { logger } from '../../platform/logger.js';
 import type { OrgCtx } from '../../platform/ctx.js';
 import { requireProjectRole } from '../auth/policy.js';
@@ -117,16 +116,10 @@ async function loadContext(
 }
 
 export async function ask(ctx: OrgCtx, input: AskAssistantInput): Promise<AssistantReply> {
-  // Assistant calls share the org's daily AI budget.
-  const { rows: usage } = await orgDb(ctx.orgId).query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM ai_messages m
-       JOIN ai_conversations c ON c.id = m.conversation_id
-      WHERE c.org_id = $1 AND m.role = 'user' AND m.created_at > now() - interval '1 day'`,
-    [ctx.orgId],
-  );
-  if ((usage[0]?.n ?? 0) >= config().AI_DAILY_CALL_BUDGET) {
-    throw new RateLimitedError("This organization has reached today's AI limit.");
-  }
+  // Assistant calls share the org's daily AI budget. Reserved up front, in its
+  // own transaction, so the slot is claimed before the provider is called
+  // rather than counted afterwards.
+  await withOrg(ctx.orgId, (tx) => reserveAiCall(tx, ctx));
 
   let projectId: string | null = null;
   let scope = 'every project you can access';

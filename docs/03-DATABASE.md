@@ -1,9 +1,11 @@
 # Outcome — Database Design (PostgreSQL 16)
 
 **Authoritative DDL:** `app/server/db/migrations/0001_init.sql` (core schema),
-`0002_search.sql` (FTS), `0003_rls.sql` (row-level security). This document
-explains the design; the migrations are the exact column/type/index/constraint
-spec and are runnable as-is.
+`0002_search.sql` (FTS), `0003_rls.sql` (row-level security),
+`0004_login_attempts.sql` (login throttling), `0005_rls_fix_empty_setting.sql`
+(fail-closed org context), `0006_ai_usage.sql` (atomic AI budget). This
+document explains the design; the migrations are the exact
+column/type/index/constraint spec and are runnable as-is.
 
 ## Design principles
 
@@ -40,6 +42,12 @@ spec and are runnable as-is.
 6. **Enums as `text + CHECK`** — evolvable without `ALTER TYPE` locks.
 7. **Task numbering** (`ATLAS-42`) via `project_counters` row locked in the
    creating transaction — gapless per project, no sequence-per-project sprawl.
+8. **Counters, not row counts, for quotas.** `ai_usage_daily` holds one row per
+   (org, UTC day) so the daily AI budget is reserved by a single upsert that
+   increments and returns the new total. Counting rows and then writing one is
+   a check-then-act race, and making it atomic would mean holding a lock across
+   the model call — serializing every AI request in the org behind a network
+   round trip.
 
 ## Table inventory (details in `0001_init.sql`)
 
@@ -50,7 +58,7 @@ spec and are runnable as-is.
 | Projects | `projects`, `project_members`, `project_counters`, `statuses` |
 | Work | `epics`, `tasks` (subtasks = `parent_id`), `labels`, `task_labels`, `task_dependencies`, `blockers`, `comments`, `watchers`, `attachments` |
 | Signal | `notifications`, `notification_prefs`, `activity_events` |
-| AI | `braindumps`, `ai_conversations`, `ai_messages`, `ai_actions` |
+| AI | `braindumps`, `ai_conversations`, `ai_messages`, `ai_actions`, `ai_usage_daily` |
 | Integrations | `integrations`, `import_runs`, `import_items`, `api_keys`, `webhooks` |
 
 Notable modeling decisions:

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { api, bootstrapOrgProject, closeApp, getApp, signup, truncateAll } from './helpers.js';
 import type { TestClient } from './helpers.js';
-import type { TaskDetail } from '@outcome/shared';
+import type { Task, TaskDetail } from '@outcome/shared';
 
 let owner: TestClient;
 let ctx: Awaited<ReturnType<typeof bootstrapOrgProject>>;
@@ -390,5 +390,61 @@ describe('search', () => {
   it('requires a query', async () => {
     const res = await api(owner, 'GET', url('/search?q='));
     expect(res.status).toBe(400);
+  });
+});
+
+
+describe('keyset pagination', () => {
+  it('walks every task across pages exactly once', async () => {
+    const project = await api<{ key: string }>(
+      owner,
+      'POST',
+      `/api/v1/orgs/${ctx.orgSlug}/projects`,
+      { name: 'Pagination Project' },
+    );
+    const key = project.body.key;
+    // Created in one burst, so many rows share a timestamp and the id
+    // tiebreaker in the cursor is exercised.
+    await Promise.all(
+      Array.from({ length: 25 }, (_, i) =>
+        api(owner, 'POST', `/api/v1/orgs/${ctx.orgSlug}/projects/${key}/tasks`, {
+          title: `Paged task ${i}`,
+        }),
+      ),
+    );
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 10; page++) {
+      const query = new URLSearchParams({ projectId: key, limit: '10' });
+      if (cursor) query.set('cursor', cursor);
+      const res = await api<{ items: Task[]; nextCursor: string | null }>(
+        owner,
+        'GET',
+        `/api/v1/orgs/${ctx.orgSlug}/tasks?${query.toString()}`,
+      );
+      expect(res.status).toBe(200);
+      seen.push(...res.body.items.map((t) => t.id));
+      cursor = res.body.nextCursor;
+      if (!cursor) break;
+    }
+    expect(seen).toHaveLength(25);
+    expect(new Set(seen).size).toBe(25);
+  });
+
+  it('rejects a malformed cursor instead of ignoring it', async () => {
+    const res = await api(
+      owner,
+      'GET',
+      `/api/v1/orgs/${ctx.orgSlug}/tasks?projectId=${ctx.projectKey}&cursor=garbage`,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('returns timestamps as ISO strings the client can parse', async () => {
+    const task = await makeTask('Timestamp shape');
+    expect(task.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    expect(task.createdAt.endsWith('Z')).toBe(true);
+    expect(Number.isNaN(new Date(task.createdAt).getTime())).toBe(false);
   });
 });

@@ -15,5 +15,13 @@ export default defineConfig({
     environment: 'jsdom',
     globals: false,
     setupFiles: ['./src/test-setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary'],
+      include: ['src/**/*.{ts,tsx}'],
+      // Test files must not count toward the figure they are measuring.
+      exclude: ['src/main.tsx', 'src/test-setup.ts', 'src/__tests__/**'],
+    },
   },
 });

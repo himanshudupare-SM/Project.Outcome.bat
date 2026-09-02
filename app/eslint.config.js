@@ -29,8 +29,16 @@ export default tseslint.config(
     },
   },
   {
-    // Config and script files run outside the typed project graph.
-    files: ['**/*.config.ts', '**/*.config.js', 'eslint.config.js'],
+    // Config, script and end-to-end files run outside the typed project graph.
+    files: ['**/*.config.ts', '**/*.config.js', 'eslint.config.js', 'e2e/**/*.mjs'],
     ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    files: ['e2e/**/*.mjs'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: false },
+      // `process`/`console`/`fetch` are Node's; `DataTransfer` runs inside page.evaluate.
+      globals: { process: 'readonly', console: 'readonly', fetch: 'readonly', URL: 'readonly', DataTransfer: 'readonly' },
+    },
   },
 );

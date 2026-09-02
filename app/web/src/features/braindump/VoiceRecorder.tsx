@@ -54,12 +54,19 @@ export function VoiceRecorder({
   const stream = useRef<MediaStream | null>(null);
   const timer = useRef<number | null>(null);
   const finalText = useRef('');
+  const interimText = useRef('');
+  const elapsed = useRef(0);
+  // `start` runs while the phase is still 'permission', so a callback closing
+  // over the `phase` state would never see 'recording'. The engine's own
+  // handlers need the live value, so keep it in a ref.
+  const recording = useRef(false);
 
   const stopEverything = useCallback(() => {
     if (timer.current !== null) {
       window.clearInterval(timer.current);
       timer.current = null;
     }
+    recording.current = false;
     recognition.current?.abort();
     recognition.current = null;
     stream.current?.getTracks().forEach((t) => t.stop());
@@ -67,6 +74,25 @@ export function VoiceRecorder({
   }, []);
 
   useEffect(() => stopEverything, [stopEverything]);
+
+  /**
+   * The only way into the review phase. Interim words are folded into the
+   * final text first: they are real speech, and dropping them would silently
+   * lose the tail of what the user said.
+   */
+  const enterReview = useCallback(
+    (note?: string) => {
+      stopEverything();
+      const merged = `${finalText.current}${interimText.current ? ` ${interimText.current}` : ''}`.trim();
+      finalText.current = merged;
+      interimText.current = '';
+      setTranscript(merged);
+      setInterim('');
+      if (note !== undefined) setMessage(note);
+      setPhase('review');
+    },
+    [stopEverything],
+  );
 
   const start = useCallback(async () => {
     setMessage(null);
@@ -108,6 +134,7 @@ export function VoiceRecorder({
           if (result.isFinal) finalText.current += `${text.trim()} `;
           else pending += text;
         }
+        interimText.current = pending;
         setTranscript(finalText.current);
         setInterim(pending);
       };
@@ -131,7 +158,7 @@ export function VoiceRecorder({
       };
       // Chrome ends the session periodically; restart while still recording.
       engine.onend = () => {
-        if (recognition.current === engine && phase === 'recording') {
+        if (recognition.current === engine && recording.current) {
           try {
             engine.start();
           } catch {
@@ -152,25 +179,18 @@ export function VoiceRecorder({
       );
     }
 
+    recording.current = true;
     setPhase('recording');
     timer.current = window.setInterval(() => {
-      setSeconds((current) => {
-        const next = current + 1;
-        if (next >= MAX_SECONDS) {
-          stopEverything();
-          setPhase('review');
-          setMessage('Reached the 10-minute limit. Review what was captured, then extract.');
-        }
-        return next;
-      });
+      // Tick from a ref, not inside a state updater: an updater must be pure,
+      // and React may run it more than once per tick.
+      elapsed.current += 1;
+      setSeconds(elapsed.current);
+      if (elapsed.current >= MAX_SECONDS) {
+        enterReview('Reached the 10-minute limit. Review what was captured, then extract.');
+      }
     }, 1000);
-  }, [phase, stopEverything]);
-
-  const finish = useCallback(() => {
-    stopEverything();
-    setInterim('');
-    setPhase('review');
-  }, [stopEverything]);
+  }, [enterReview, stopEverything]);
 
   const combined = `${transcript}${interim ? ` ${interim}` : ''}`.trim();
   const mmss = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -189,6 +209,8 @@ export function VoiceRecorder({
               variant="ghost"
               onClick={() => {
                 finalText.current = '';
+                interimText.current = '';
+                elapsed.current = 0;
                 setTranscript('');
                 setSeconds(0);
                 setMessage(null);
@@ -219,6 +241,7 @@ export function VoiceRecorder({
             {phase === 'recording' ? (
               <Button
                 onClick={() => {
+                  recording.current = false;
                   recognition.current?.stop();
                   if (timer.current !== null) window.clearInterval(timer.current);
                   timer.current = null;
@@ -230,7 +253,7 @@ export function VoiceRecorder({
             ) : (
               <Button onClick={() => void start()}>Resume</Button>
             )}
-            <Button variant="primary" onClick={finish}>
+            <Button variant="primary" onClick={() => enterReview()}>
               Stop
             </Button>
           </>
@@ -315,9 +338,10 @@ export function VoiceRecorder({
             id="voice-transcript"
             className="textarea"
             style={{ minHeight: 180 }}
-            value={combined}
+            value={transcript}
             onChange={(e) => {
               finalText.current = e.target.value;
+              interimText.current = '';
               setTranscript(e.target.value);
               setInterim('');
             }}

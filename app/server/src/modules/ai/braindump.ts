@@ -13,7 +13,6 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-  RateLimitedError,
   ValidationError,
 } from '../../platform/errors.js';
 import { config } from '../../platform/config.js';
@@ -23,6 +22,7 @@ import { requireProjectRole } from '../auth/policy.js';
 import { recordEvent } from '../activity/service.js';
 import { notify } from '../notifications/service.js';
 import { resolveProject } from '../../http/context.js';
+import { reserveAiCall } from './budget.js';
 import * as tasksService from '../tasks/service.js';
 import { aiProvider } from './index.js';
 import {
@@ -67,20 +67,6 @@ function mapRow(row: BraindumpRow): Braindump {
   };
 }
 
-/** Per-org daily call budget, so a runaway client cannot burn the quota. */
-async function assertBudget(ctx: OrgCtx): Promise<void> {
-  const { rows } = await orgDb(ctx.orgId).query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM braindumps
-      WHERE org_id = $1 AND created_at > now() - interval '1 day'`,
-    [ctx.orgId],
-  );
-  if ((rows[0]?.n ?? 0) >= config().AI_DAILY_CALL_BUDGET) {
-    throw new RateLimitedError(
-      "This organization has reached today's AI processing limit. Try again tomorrow, or add tasks manually.",
-    );
-  }
-}
-
 /**
  * Run extraction. The dump row is created first so a failure is visible and
  * retryable rather than lost, and the raw input is always preserved.
@@ -95,8 +81,6 @@ export async function createBraindump(
       { text: 'Too long' },
     );
   }
-  await assertBudget(ctx);
-
   let projectId: string | null = null;
   let projectName: string | null = null;
   if (input.projectId) {
@@ -111,6 +95,9 @@ export async function createBraindump(
   }
 
   const created = await withOrg(ctx.orgId, async (tx) => {
+    // Reserve the budget slot in the same transaction as the row it pays for,
+    // so a rolled-back dump does not consume one.
+    await reserveAiCall(tx, ctx);
     const { rows } = await tx.query<BraindumpRow>(
       `INSERT INTO braindumps (org_id, user_id, project_id, source, raw_input, status)
        VALUES ($1, $2, $3, $4, $5, 'processing')
